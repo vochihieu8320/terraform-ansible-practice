@@ -1,0 +1,21 @@
+# Managed by Ansible — systemd unit for the otel-demo node app.
+# systemd (not `npm start &`) = auto-starts on boot, auto-restarts on crash.
+[Unit]
+Description=otel-demo Node.js app
+After=network.target
+
+[Service]
+Type=simple
+User={{ app_user }}
+WorkingDirectory={{ app_dir }}
+# Same start command as package.json: node -r ./tracing.js app.js
+ExecStart=/usr/bin/node -r ./tracing.js app.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+# OTLP endpoint — points at localhost for now (no collector yet → exports just
+# retry harmlessly). Phase 3 wires this to a real Grafana/LGTM.
+Environment=OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+[Install]
+WantedBy=multi-user.target

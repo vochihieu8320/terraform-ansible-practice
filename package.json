@@ -1,0 +1,25 @@
+{
+  "name": "otel-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal app emitting traces + metrics + logs to grafana/otel-lgtm",
+  "scripts": {
+    "start": "node -r ./tracing.js app.js",
+    "load": "node load.js"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.57.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.55.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.57.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.57.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/host-metrics": "^0.39.0",
+    "@opentelemetry/sdk-logs": "^0.57.0",
+    "@opentelemetry/sdk-metrics": "^1.30.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/winston-transport": "^0.11.0",
+    "express": "^4.21.0",
+    "winston": "^3.17.0"
+  }
+}

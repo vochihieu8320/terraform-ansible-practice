@@ -1,0 +1,127 @@
+---
+# playbook.yml — configures the EC2: installs Node, deploys otel-demo as a
+# systemd service, and installs node_exporter as a service.
+#
+# Run:        ansible-playbook playbook.yml
+# Dry run:    ansible-playbook playbook.yml --check
+
+- name: Set up otel-demo app server
+  hosts: app
+  become: true # run tasks with sudo (ubuntu has passwordless sudo on AWS)
+
+  vars:
+    app_user: ubuntu
+    app_dir: /opt/otel-demo
+    node_major: "20"
+    node_exporter_version: "1.8.2"
+    repo_root: "{{ playbook_dir }}/.." # the otel-demo repo on your laptop
+
+  tasks:
+    # ---------------------------------------------------------------- Node.js
+    - name: Add NodeSource apt repo (for a current Node, not Ubuntu's old one)
+      ansible.builtin.shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ node_major }}.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list # idempotency guard: skip if already added
+
+    - name: Install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: true
+
+    # ------------------------------------------------------------- deploy app
+    - name: Create app directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: Copy app files (not node_modules — we install those on the box)
+      ansible.builtin.copy:
+        src: "{{ repo_root }}/{{ item }}"
+        dest: "{{ app_dir }}/{{ item }}"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+      loop:
+        - app.js
+        - tracing.js
+        - load.js
+        - package.json
+        - package-lock.json
+      notify: restart otel-demo # if any file changes, restart the service
+
+    - name: Install npm dependencies (npm ci = clean, reproducible install)
+      ansible.builtin.command:
+        cmd: npm ci --omit=dev
+        chdir: "{{ app_dir }}"
+        creates: "{{ app_dir }}/node_modules" # skip if deps already installed
+      become_user: "{{ app_user }}"
+
+    - name: Install otel-demo systemd unit
+      ansible.builtin.template:
+        src: otel-demo.service.j2
+        dest: /etc/systemd/system/otel-demo.service
+        mode: "0644"
+      notify: restart otel-demo
+
+    - name: Enable + start otel-demo (enabled = auto-start on boot)
+      ansible.builtin.systemd:
+        name: otel-demo
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    # ----------------------------------------------------------- node_exporter
+    - name: Create node_exporter system user (no login, no home)
+      ansible.builtin.user:
+        name: node_exporter
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Download + extract node_exporter
+      ansible.builtin.unarchive:
+        src: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: /tmp
+        remote_src: true # download happens on the EC2, not your laptop
+        creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+
+    - name: Install node_exporter binary to /usr/local/bin
+      ansible.builtin.copy:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        remote_src: true
+        owner: node_exporter
+        group: node_exporter
+        mode: "0755"
+
+    - name: Install node_exporter systemd unit
+      ansible.builtin.template:
+        src: node_exporter.service.j2
+        dest: /etc/systemd/system/node_exporter.service
+        mode: "0644"
+      notify: restart node_exporter
+
+    - name: Enable + start node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  # Handlers run ONCE at the end, and ONLY if a task notified them (i.e. only
+  # when something actually changed). This avoids needless restarts.
+  handlers:
+    - name: restart otel-demo
+      ansible.builtin.systemd:
+        name: otel-demo
+        state: restarted
+
+    - name: restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted

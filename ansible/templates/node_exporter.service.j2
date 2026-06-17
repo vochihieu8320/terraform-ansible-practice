@@ -1,0 +1,15 @@
+# Managed by Ansible — systemd unit for Prometheus node_exporter.
+# Exposes host CPU/mem/disk/network metrics on :9100 (for Phase 3).
+[Unit]
+Description=Prometheus Node Exporter
+After=network.target
+
+[Service]
+Type=simple
+User=node_exporter
+ExecStart=/usr/local/bin/node_exporter
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

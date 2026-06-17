@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and fill in. (terraform.tfvars is gitignored, so the
+# real keys you put there never get committed/pushed.)
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Re-check your public IP each time (it changes): curl https://checkip.amazonaws.com
+
+my_ip          = "YOUR.IP.HERE/32"                 # e.g. 42.118.184.89/32
+aws_access_key = "PUT_YOUR_ACCESS_KEY_ID_HERE"     # from AWS Console → IAM
+aws_secret_key = "PUT_YOUR_SECRET_ACCESS_KEY_HERE"

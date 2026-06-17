@@ -1,0 +1,9 @@
+node_modules/
+npm-debug.log*
+
+# Terraform — NEVER commit these
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+*.pem
