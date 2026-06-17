@@ -1,0 +1,54 @@
+name: Deploy (Ansible)
+
+# WHEN this runs:
+on:
+  push:
+    branches: [main]
+    paths: # only on app or ansible changes — not docs/terraform
+      - "app.js"
+      - "tracing.js"
+      - "load.js"
+      - "package.json"
+      - "package-lock.json"
+      - "ansible/**"
+  workflow_dispatch: {} # adds a manual "Run workflow" button for testing
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # ephemeral VM GitHub gives us
+
+    steps:
+      # 1. pull the repo onto the runner
+      - uses: actions/checkout@v4
+
+      # 2. install Ansible on the runner (pipx is preinstalled on GitHub runners)
+      - name: Install Ansible
+        run: pipx install --include-deps ansible
+
+      # 3. AUTH: write the private key (from the secret) to a file Ansible can use.
+      #    The EC2 already trusts the matching public key (Terraform uploaded it).
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      # 4. HOST: build the inventory from the EC2_HOST repo variable at runtime,
+      #    so no IP is baked into the committed repo.
+      - name: Generate inventory
+        run: |
+          cat > ansible/inventory.ini <<EOF
+          [app]
+          ${{ vars.EC2_HOST }}
+
+          [app:vars]
+          ansible_user=ubuntu
+          EOF
+
+      # 5. run the SAME playbook you run locally. Idempotent: it checks every
+      #    dependency (Node, app dir, systemd service) and only fixes drift.
+      - name: Run Ansible playbook
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false" # runner has never seen this box
+        run: ansible-playbook playbook.yml --private-key ~/.ssh/id_ed25519
