@@ -113,6 +113,6 @@ app.get('/work', async (req, res) => {
   }
 });
 
-app.get('/', (_req, res) => res.send('otel-demo: hit /work to generate telemetry'));
+app.get('/', (_req, res) => res.send('otel-demo v2 — deployed via GitHub Actions CI/CD 🚀'));
 
 app.listen(8080, () => logger.info('otel-demo listening', { port: 8080 }));
